@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Smith &amp; Sons Inventory</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #0e0e10;
@@ -352,6 +353,69 @@
   .toast-dot.red { background: var(--red); }
   .toast-dot.gold { background: var(--accent); }
 
+  .login-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: var(--bg);
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .login-overlay.show { display: flex; }
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 30px;
+    width: 100%;
+    max-width: 380px;
+  }
+  .login-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-align: center;
+    line-height: 1;
+  }
+  .login-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    margin: 6px 0 22px;
+  }
+  .login-card .field { margin-bottom: 12px; }
+  .login-card input { width: 100%; }
+  .login-card .btn { width: 100%; margin-top: 10px; }
+  .login-error {
+    color: var(--red);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    min-height: 16px;
+    margin: 4px 0 0;
+    text-align: center;
+  }
+
+  .sync-indicator {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    background: transparent;
+    user-select: none;
+  }
+  .sync-indicator.synced { color: var(--green); border-color: rgba(61,220,132,.3); }
+  .sync-indicator.pending { color: var(--accent); border-color: rgba(240,192,64,.3); }
+  .sync-indicator.offline { color: var(--red); border-color: rgba(255,84,84,.3); }
+
   @media (max-width: 860px) {
     header { align-items: flex-start; flex-direction: column; padding: 14px 16px; }
     .header-actions { width: 100%; justify-content: stretch; }
@@ -368,12 +432,31 @@
 </head>
 <body>
 
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-title">Smith &amp; Sons</div>
+    <div class="login-sub">Inventory — sign in</div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <button class="btn btn-primary btn-lg" id="loginBtn">Sign In</button>
+  </div>
+</div>
+
 <header>
   <div class="logo">Smith &amp; Sons <span>Inventory</span></div>
   <div class="header-actions">
+    <span class="sync-indicator synced" id="syncIndicator" title="All changes saved">● synced</span>
     <button class="btn btn-ghost btn-sm" id="exportBtn">⬇ Export CSV</button>
     <button class="btn btn-orange btn-sm" id="showSummaryBtn">Show Summary</button>
     <button class="btn btn-primary" id="addCardBtn">+ Add Card</button>
+    <button class="btn btn-ghost btn-sm" id="signOutBtn">Sign Out</button>
   </div>
 </header>
 
@@ -540,14 +623,139 @@
 
 <script>
 const STORAGE_KEY = 'thebinder_v1';
+const PENDING_KEY = 'thebinder_pending_v1';
+const SUPABASE_URL = 'https://sxivcnutczuzlrbgxwfi.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_5HNCuhEbY6JHNXccvb8dMw_OuX64Kbg';
 
-function load() {
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function loadLocal() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
   catch { return []; }
 }
-function save(cards) { localStorage.setItem(STORAGE_KEY, JSON.stringify(cards)); }
+function saveLocal() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+}
 
-let cards = load().map(c => ({ box: '', paymentMethod: '', saleDate: '', saleNotes: '', ...c }));
+function loadPending() {
+  try {
+    const p = JSON.parse(localStorage.getItem(PENDING_KEY));
+    return (p && Array.isArray(p.upserts) && Array.isArray(p.deletes)) ? p : { upserts: [], deletes: [] };
+  } catch { return { upserts: [], deletes: [] }; }
+}
+function savePending() { localStorage.setItem(PENDING_KEY, JSON.stringify(pending)); }
+function queueUpsert(id) {
+  pending.deletes = pending.deletes.filter(x => x !== id);
+  if (!pending.upserts.includes(id)) pending.upserts.push(id);
+  savePending(); updateSyncIndicator();
+}
+function queueDelete(id) {
+  pending.upserts = pending.upserts.filter(x => x !== id);
+  if (!pending.deletes.includes(id)) pending.deletes.push(id);
+  savePending(); updateSyncIndicator();
+}
+function clearPending(id) {
+  pending.upserts = pending.upserts.filter(x => x !== id);
+  pending.deletes = pending.deletes.filter(x => x !== id);
+  savePending(); updateSyncIndicator();
+}
+
+// JS card object <-> Supabase row mapping (camelCase <-> snake_case; `set` is a SQL keyword so it's `card_set`)
+function toDbRow(c) {
+  return {
+    id: c.id,
+    player: c.player,
+    sport: c.sport,
+    box: c.box || '',
+    year: c.year || '',
+    card_set: c.set || '',
+    grade: c.grade || '',
+    cost: Number(c.cost) || 0,
+    asking: c.asking ?? null,
+    notes: c.notes || '',
+    sold: !!c.sold,
+    sell_price: c.sellPrice ?? null,
+    payment_method: c.paymentMethod || '',
+    sale_date: c.saleDate || '',
+    sale_notes: c.saleNotes || ''
+  };
+}
+function fromDbRow(r) {
+  return {
+    id: r.id,
+    player: r.player,
+    sport: r.sport,
+    box: r.box || '',
+    year: r.year || '',
+    set: r.card_set || '',
+    grade: r.grade || '',
+    cost: Number(r.cost) || 0,
+    asking: r.asking != null ? Number(r.asking) : null,
+    notes: r.notes || '',
+    sold: !!r.sold,
+    sellPrice: r.sell_price != null ? Number(r.sell_price) : null,
+    paymentMethod: r.payment_method || '',
+    saleDate: r.sale_date || '',
+    saleNotes: r.sale_notes || ''
+  };
+}
+
+async function pushUpsert(card) {
+  const { error } = await sb.from('cards').upsert(toDbRow(card));
+  if (error) throw error;
+}
+async function pushDelete(id) {
+  const { error } = await sb.from('cards').delete().eq('id', id);
+  if (error) throw error;
+}
+async function pullAll() {
+  const { data, error } = await sb.from('cards').select('*');
+  if (error) throw error;
+  return data.map(fromDbRow);
+}
+
+function saveAndSync(card) {
+  saveLocal();
+  pushUpsert(card).then(() => clearPending(card.id)).catch(() => queueUpsert(card.id));
+}
+function saveAndSyncDelete(id) {
+  saveLocal();
+  pushDelete(id).then(() => clearPending(id)).catch(() => queueDelete(id));
+}
+
+async function flushPending() {
+  if (!navigator.onLine) return;
+  for (const id of [...pending.upserts]) {
+    const card = cards.find(c => c.id === id);
+    if (!card) { clearPending(id); continue; }
+    try { await pushUpsert(card); clearPending(id); } catch (e) { /* keep queued */ }
+  }
+  for (const id of [...pending.deletes]) {
+    try { await pushDelete(id); clearPending(id); } catch (e) { /* keep queued */ }
+  }
+}
+
+function updateSyncIndicator() {
+  const el = document.getElementById('syncIndicator');
+  if (!el) return;
+  const count = pending.upserts.length + pending.deletes.length;
+  if (!navigator.onLine && count > 0) {
+    el.className = 'sync-indicator offline';
+    el.textContent = `● offline (${count})`;
+    el.title = 'No connection. Changes will sync when online.';
+  } else if (count > 0) {
+    el.className = 'sync-indicator pending';
+    el.textContent = `● ${count} pending`;
+    el.title = 'Click to retry syncing.';
+  } else {
+    el.className = 'sync-indicator synced';
+    el.textContent = '● synced';
+    el.title = 'All changes saved to cloud.';
+  }
+}
+
+let pending = loadPending();
+let cards = loadLocal().map(c => ({ box: '', paymentMethod: '', saleDate: '', saleNotes: '', ...c }));
 let editingId = null;
 let sellingId = null;
 let sortCol = 'player';
@@ -771,15 +979,19 @@ document.getElementById('modalSaveBtn').addEventListener('click', () => {
     notes: document.getElementById('f-notes').value.trim(),
   };
 
+  let touched;
   if (editingId) {
     const idx = cards.findIndex(c => c.id === editingId);
     cards[idx] = { ...cards[idx], ...data };
+    touched = cards[idx];
     toast('Card updated', 'gold');
   } else {
-    cards.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2), sold: false, sellPrice: null, paymentMethod: '', saleDate: '', saleNotes: '', ...data });
+    const newCard = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), sold: false, sellPrice: null, paymentMethod: '', saleDate: '', saleNotes: '', ...data };
+    cards.push(newCard);
+    touched = newCard;
     toast('Card added', 'green');
   }
-  save(cards);
+  saveAndSync(touched);
   closeCardModal();
   render();
 });
@@ -843,7 +1055,7 @@ document.getElementById('sellConfirmBtn').addEventListener('click', () => {
   cards[idx].paymentMethod = selectedPayment;
   cards[idx].saleDate = todayISO();
   cards[idx].saleNotes = document.getElementById('f-saleNotes').value.trim();
-  save(cards);
+  saveAndSync(cards[idx]);
   closeSellModal();
   render();
   toast(`Sold! P/L: ${pl >= 0 ? '+' : ''}$${Math.abs(pl).toFixed(2)}`, pl >= 0 ? 'green' : 'red');
@@ -865,15 +1077,16 @@ document.getElementById('tableBody').addEventListener('click', e => {
       cards[idx].paymentMethod = '';
       cards[idx].saleDate = '';
       cards[idx].saleNotes = '';
-      save(cards);
+      saveAndSync(cards[idx]);
       render();
       toast('Sale undone', 'gold');
     }
   }
   if (delBtn) {
     if (confirm('Delete this card from inventory?')) {
-      cards = cards.filter(c => c.id !== delBtn.dataset.id);
-      save(cards);
+      const idToDelete = delBtn.dataset.id;
+      cards = cards.filter(c => c.id !== idToDelete);
+      saveAndSyncDelete(idToDelete);
       render();
       toast('Card removed', 'red');
     }
@@ -961,7 +1174,69 @@ document.addEventListener('keydown', e => {
   }
 });
 
-render();
+// ---- Auth + initial load ----
+async function signIn() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+  errorEl.textContent = '';
+  if (!email || !password) { errorEl.textContent = 'Enter email and password.'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { errorEl.textContent = error.message; return; }
+  document.getElementById('loginPassword').value = '';
+  await init();
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  cards = [];
+  saveLocal();
+  pending = { upserts: [], deletes: [] };
+  savePending();
+  render();
+  await init();
+}
+
+document.getElementById('loginBtn').addEventListener('click', signIn);
+document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
+document.getElementById('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
+document.getElementById('signOutBtn').addEventListener('click', signOut);
+document.getElementById('syncIndicator').addEventListener('click', async () => {
+  await flushPending();
+  try { cards = await pullAll(); saveLocal(); render(); } catch (e) {}
+});
+
+window.addEventListener('online', async () => {
+  updateSyncIndicator();
+  await flushPending();
+});
+window.addEventListener('offline', updateSyncIndicator);
+
+async function init() {
+  const { data: { session } } = await sb.auth.getSession();
+  const loginOverlay = document.getElementById('loginOverlay');
+  if (!session) {
+    loginOverlay.classList.add('show');
+    setTimeout(() => document.getElementById('loginEmail').focus(), 50);
+    return;
+  }
+  loginOverlay.classList.remove('show');
+  // Render cached data immediately
+  render();
+  updateSyncIndicator();
+  // Then refresh from cloud
+  try {
+    const cloudCards = await pullAll();
+    cards = cloudCards;
+    saveLocal();
+    render();
+  } catch (e) {
+    toast('Offline — using cached data', 'gold');
+  }
+  flushPending();
+}
+
+init();
 </script>
 </body>
 </html>
