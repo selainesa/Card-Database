@@ -6,7 +6,6 @@
 <title>Smith &amp; Sons Inventory</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #0e0e10;
@@ -199,7 +198,7 @@
   .filter-tab.active { background: var(--accent); color: #111; font-weight: 700; }
 
   .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
-  table { width: 100%; border-collapse: collapse; min-width: 1040px; }
+  table { width: 100%; border-collapse: collapse; min-width: 1140px; }
   thead tr { background: var(--surface2); }
   th {
     font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
@@ -354,6 +353,7 @@
   .toast-dot.red { background: var(--red); }
   .toast-dot.gold { background: var(--accent); }
 
+
   .login-overlay {
     position: fixed; inset: 0; z-index: 500;
     background: var(--bg);
@@ -417,6 +417,33 @@
   .sync-indicator.pending { color: var(--accent); border-color: rgba(240,192,64,.3); }
   .sync-indicator.offline { color: var(--red); border-color: rgba(255,84,84,.3); }
 
+
+  .scan-panel {
+    background: var(--surface2);
+    border: 1px dashed rgba(240,192,64,.45);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .scan-panel .scan-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .scan-help { color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .scan-result {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    white-space: pre-wrap;
+    max-height: 120px;
+    overflow-y: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .scan-result.show { display: block; }
+
   @media (max-width: 860px) {
     header { align-items: flex-start; flex-direction: column; padding: 14px 16px; }
     .header-actions { width: 100%; justify-content: stretch; }
@@ -430,6 +457,8 @@
     .payment-grid, .quick-prices { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
 
@@ -503,6 +532,7 @@
           <th data-col="cost">Cost <span class="sort-icon">↕</span></th>
           <th data-col="asking">Sticker <span class="sort-icon">↕</span></th>
           <th data-col="sellPrice">Sold For <span class="sort-icon">↕</span></th>
+          <th data-col="saleShow">Show <span class="sort-icon">↕</span></th>
           <th data-col="profit">P/L <span class="sort-icon">↕</span></th>
           <th>Notes</th>
           <th>Actions</th>
@@ -557,6 +587,18 @@
           <input type="number" id="f-asking" min="0" step="0.01" placeholder="0.00">
         </div>
         <div class="field span2">
+          <label>Camera Scan</label>
+          <div class="scan-panel">
+            <div class="scan-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="scanCardBtn">📷 Scan Card Text</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="useScanNotesBtn">Use Scan in Notes</button>
+            </div>
+            <div class="scan-help">Take a clear photo of the front/back label or graded slab. This reads visible text only — it will not perfectly identify every card.</div>
+            <div class="scan-result" id="scanResult"></div>
+            <input type="file" id="scanImageInput" accept="image/*" capture="environment" style="display:none">
+          </div>
+        </div>
+        <div class="field span2">
           <label>Notes</label>
           <textarea id="f-notes" placeholder="Condition, purchase source, comp note, team, etc."></textarea>
         </div>
@@ -590,6 +632,10 @@
           <button class="pay-option" data-pay="Card">Card</button>
           <button class="pay-option" data-pay="Other">Other</button>
         </div>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label>Show / Event</label>
+        <input type="text" id="f-saleShow" placeholder="e.g. Knoxville Card Show, Tri-Cities Expo…">
       </div>
       <div class="field" style="margin-top:12px">
         <label>Sale Notes</label>
@@ -627,17 +673,13 @@ const STORAGE_KEY = 'thebinder_v1';
 const PENDING_KEY = 'thebinder_pending_v1';
 const SUPABASE_URL = 'https://sxivcnutczuzlrbgxwfi.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_5HNCuhEbY6JHNXccvb8dMw_OuX64Kbg';
-
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function loadLocal() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
   catch { return []; }
 }
-function saveLocal() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
-}
-
+function saveLocal() { localStorage.setItem(STORAGE_KEY, JSON.stringify(cards)); }
 function loadPending() {
   try {
     const p = JSON.parse(localStorage.getItem(PENDING_KEY));
@@ -645,118 +687,44 @@ function loadPending() {
   } catch { return { upserts: [], deletes: [] }; }
 }
 function savePending() { localStorage.setItem(PENDING_KEY, JSON.stringify(pending)); }
-function queueUpsert(id) {
-  pending.deletes = pending.deletes.filter(x => x !== id);
-  if (!pending.upserts.includes(id)) pending.upserts.push(id);
-  savePending(); updateSyncIndicator();
-}
-function queueDelete(id) {
-  pending.upserts = pending.upserts.filter(x => x !== id);
-  if (!pending.deletes.includes(id)) pending.deletes.push(id);
-  savePending(); updateSyncIndicator();
-}
-function clearPending(id) {
-  pending.upserts = pending.upserts.filter(x => x !== id);
-  pending.deletes = pending.deletes.filter(x => x !== id);
-  savePending(); updateSyncIndicator();
-}
+function queueUpsert(id) { pending.deletes = pending.deletes.filter(x => x !== id); if (!pending.upserts.includes(id)) pending.upserts.push(id); savePending(); updateSyncIndicator(); }
+function queueDelete(id) { pending.upserts = pending.upserts.filter(x => x !== id); if (!pending.deletes.includes(id)) pending.deletes.push(id); savePending(); updateSyncIndicator(); }
+function clearPending(id) { pending.upserts = pending.upserts.filter(x => x !== id); pending.deletes = pending.deletes.filter(x => x !== id); savePending(); updateSyncIndicator(); }
 
-// JS card object <-> Supabase row mapping (camelCase <-> snake_case; `set` is a SQL keyword so it's `card_set`)
 function toDbRow(c) {
   return {
-    id: c.id,
-    player: c.player,
-    sport: c.sport,
-    box: c.box || '',
-    year: c.year || '',
-    card_set: c.set || '',
-    grade: c.grade || '',
-    cost: Number(c.cost) || 0,
-    asking: c.asking ?? null,
-    notes: c.notes || '',
-    sold: !!c.sold,
-    sell_price: c.sellPrice ?? null,
-    payment_method: c.paymentMethod || '',
-    sale_date: c.saleDate || '',
-    sale_notes: c.saleNotes || ''
+    id: c.id, player: c.player, sport: c.sport, box: c.box || '', year: c.year || '', card_set: c.set || '', grade: c.grade || '',
+    cost: Number(c.cost) || 0, asking: c.asking ?? null, notes: c.notes || '', sold: !!c.sold,
+    sell_price: c.sellPrice ?? null, payment_method: c.paymentMethod || '', sale_date: c.saleDate || '', sale_show: c.saleShow || '', sale_notes: c.saleNotes || ''
   };
 }
 function fromDbRow(r) {
   return {
-    id: r.id,
-    player: r.player,
-    sport: r.sport,
-    box: r.box || '',
-    year: r.year || '',
-    set: r.card_set || '',
-    grade: r.grade || '',
-    cost: Number(r.cost) || 0,
-    asking: r.asking != null ? Number(r.asking) : null,
-    notes: r.notes || '',
-    sold: !!r.sold,
-    sellPrice: r.sell_price != null ? Number(r.sell_price) : null,
-    paymentMethod: r.payment_method || '',
-    saleDate: r.sale_date || '',
-    saleNotes: r.sale_notes || ''
+    id: r.id, player: r.player, sport: r.sport, box: r.box || '', year: r.year || '', set: r.card_set || '', grade: r.grade || '',
+    cost: Number(r.cost) || 0, asking: r.asking != null ? Number(r.asking) : null, notes: r.notes || '', sold: !!r.sold,
+    sellPrice: r.sell_price != null ? Number(r.sell_price) : null, paymentMethod: r.payment_method || '', saleDate: r.sale_date || '', saleShow: r.sale_show || '', saleNotes: r.sale_notes || ''
   };
 }
-
-async function pushUpsert(card) {
-  const { error } = await sb.from('cards').upsert(toDbRow(card));
-  if (error) throw error;
-}
-async function pushDelete(id) {
-  const { error } = await sb.from('cards').delete().eq('id', id);
-  if (error) throw error;
-}
-async function pullAll() {
-  const { data, error } = await sb.from('cards').select('*');
-  if (error) throw error;
-  return data.map(fromDbRow);
-}
-
-function saveAndSync(card) {
-  saveLocal();
-  pushUpsert(card).then(() => clearPending(card.id)).catch(() => queueUpsert(card.id));
-}
-function saveAndSyncDelete(id) {
-  saveLocal();
-  pushDelete(id).then(() => clearPending(id)).catch(() => queueDelete(id));
-}
-
+async function pushUpsert(card) { const { error } = await sb.from('cards').upsert(toDbRow(card)); if (error) throw error; }
+async function pushDelete(id) { const { error } = await sb.from('cards').delete().eq('id', id); if (error) throw error; }
+async function pullAll() { const { data, error } = await sb.from('cards').select('*'); if (error) throw error; return data.map(fromDbRow); }
+function saveAndSync(card) { saveLocal(); pushUpsert(card).then(() => clearPending(card.id)).catch(() => queueUpsert(card.id)); }
+function saveAndSyncDelete(id) { saveLocal(); pushDelete(id).then(() => clearPending(id)).catch(() => queueDelete(id)); }
 async function flushPending() {
   if (!navigator.onLine) return;
-  for (const id of [...pending.upserts]) {
-    const card = cards.find(c => c.id === id);
-    if (!card) { clearPending(id); continue; }
-    try { await pushUpsert(card); clearPending(id); } catch (e) { /* keep queued */ }
-  }
-  for (const id of [...pending.deletes]) {
-    try { await pushDelete(id); clearPending(id); } catch (e) { /* keep queued */ }
-  }
+  for (const id of [...pending.upserts]) { const card = cards.find(c => c.id === id); if (!card) { clearPending(id); continue; } try { await pushUpsert(card); clearPending(id); } catch (e) {} }
+  for (const id of [...pending.deletes]) { try { await pushDelete(id); clearPending(id); } catch (e) {} }
 }
-
 function updateSyncIndicator() {
-  const el = document.getElementById('syncIndicator');
-  if (!el) return;
+  const el = document.getElementById('syncIndicator'); if (!el) return;
   const count = pending.upserts.length + pending.deletes.length;
-  if (!navigator.onLine && count > 0) {
-    el.className = 'sync-indicator offline';
-    el.textContent = `● offline (${count})`;
-    el.title = 'No connection. Changes will sync when online.';
-  } else if (count > 0) {
-    el.className = 'sync-indicator pending';
-    el.textContent = `● ${count} pending`;
-    el.title = 'Click to retry syncing.';
-  } else {
-    el.className = 'sync-indicator synced';
-    el.textContent = '● synced';
-    el.title = 'All changes saved to cloud.';
-  }
+  if (!navigator.onLine && count > 0) { el.className = 'sync-indicator offline'; el.textContent = `● offline (${count})`; el.title = 'No connection. Changes will sync when online.'; }
+  else if (count > 0) { el.className = 'sync-indicator pending'; el.textContent = `● ${count} pending`; el.title = 'Click to retry syncing.'; }
+  else { el.className = 'sync-indicator synced'; el.textContent = '● synced'; el.title = 'All changes saved to cloud.'; }
 }
 
 let pending = loadPending();
-let cards = loadLocal().map(c => ({ box: '', paymentMethod: '', saleDate: '', saleNotes: '', ...c }));
+let cards = loadLocal().map(c => ({ box: '', paymentMethod: '', saleDate: '', saleShow: '', saleNotes: '', ...c }));
 let editingId = null;
 let sellingId = null;
 let sortCol = 'player';
@@ -832,7 +800,7 @@ function getFiltered() {
     if (filterStatus === 'sold' && !c.sold) return false;
     if (sport && c.sport !== sport) return false;
     if (q) {
-      const hay = [c.player, c.sport, c.box, c.year, c.set, c.grade, c.notes, c.paymentMethod, c.saleNotes].join(' ').toLowerCase();
+      const hay = [c.player, c.sport, c.box, c.year, c.set, c.grade, c.notes, c.paymentMethod, c.saleShow, c.saleNotes].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -868,7 +836,7 @@ function renderTable() {
   });
 
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><span class="big">NO MATCHES</span>Try another search or add a new card.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state"><span class="big">NO MATCHES</span>Try another search or add a new card.</div></td></tr>`;
     return;
   }
 
@@ -889,6 +857,7 @@ function renderTable() {
       <td class="money">${money(c.cost)}</td>
       <td class="money">${c.sold ? '<span class="muted">—</span>' : money(c.asking)}</td>
       <td>${c.sold ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="sold-tag">✓ sold</span><span class="money">${money(c.sellPrice)}</span>${saleMeta}</div>` : '<span class="muted">—</span>'}</td>
+      <td><span class="tiny">${c.sold ? esc(c.saleShow || '—') : '—'}</span></td>
       <td class="money profit ${plCls}">${plStr}</td>
       <td class="notes-cell" title="${esc(c.notes||c.saleNotes||'')}">${esc(c.notes||c.saleNotes||'—')}</td>
       <td class="actions-cell">
@@ -945,6 +914,9 @@ function openAddModal(card = null) {
   document.getElementById('f-cost').value = card?.cost ?? '';
   document.getElementById('f-asking').value = card?.asking ?? '';
   document.getElementById('f-notes').value = card?.notes || '';
+  lastScanText = '';
+  const scanResult = document.getElementById('scanResult');
+  if (scanResult) { scanResult.textContent = ''; scanResult.classList.remove('show'); }
   document.getElementById('cardModal').classList.add('open');
   setTimeout(() => document.getElementById('f-player').focus(), 100);
 }
@@ -954,11 +926,83 @@ function closeCardModal() {
   editingId = null;
 }
 
+
+let lastScanText = '';
+function cleanScanText(text) {
+  return String(text || '')
+    .replace(/[^\S
+]+/g, ' ')
+    .replace(/
+{3,}/g, '
+
+')
+    .trim();
+}
+function applyScanSuggestions(text) {
+  const t = cleanScanText(text);
+  if (!t) return;
+  const lines = t.split(/
++/).map(x => x.trim()).filter(Boolean);
+  const yearMatch = t.match(/(19\d{2}|20\d{2})/);
+  const gradeMatch = t.match(/(PSA|BGS|SGC|CGC|CSG)\s*(?:GEM\s*MT|MINT|NM-MT|[A-Z ]*)?\s*(10|9\.5|9|8\.5|8|7\.5|7)/i);
+  const likelyPlayer = lines.find(line =>
+    /^[A-Z0-9 .'-]{4,35}$/.test(line) &&
+    !/^(TOPPS|PANINI|DONRUSS|PRIZM|OPTIC|SELECT|PSA|BGS|SGC|GEM|MINT|BASEBALL|BASKETBALL|FOOTBALL)$/i.test(line)
+  );
+
+  if (likelyPlayer && !document.getElementById('f-player').value.trim()) {
+    document.getElementById('f-player').value = likelyPlayer.replace(/\s+/g, ' ');
+  }
+  if (yearMatch && !document.getElementById('f-year').value.trim()) {
+    document.getElementById('f-year').value = yearMatch[1];
+  }
+  if (gradeMatch && !document.getElementById('f-grade').value.trim()) {
+    document.getElementById('f-grade').value = `${gradeMatch[1].toUpperCase()} ${gradeMatch[2]}`;
+  }
+  if (!document.getElementById('f-set').value.trim()) {
+    const setLine = lines.find(line => /(topps|panini|donruss|prizm|optic|select|bowman|mosaic|contenders|score|chronicles|absolute|heritage|finest|chrome)/i.test(line));
+    if (setLine) document.getElementById('f-set').value = setLine;
+  }
+}
+async function handleCardScan(file) {
+  if (!file) return;
+  const resultEl = document.getElementById('scanResult');
+  resultEl.classList.add('show');
+  resultEl.textContent = 'Scanning image text…';
+  toast('Scanning card text…', 'gold');
+  try {
+    if (!window.Tesseract) throw new Error('Scanner library did not load. Check connection and refresh.');
+    const { data } = await Tesseract.recognize(file, 'eng', {
+      logger: m => {
+        if (m.status && typeof m.progress === 'number') {
+          resultEl.textContent = `${m.status} ${Math.round(m.progress * 100)}%`;
+        }
+      }
+    });
+    lastScanText = cleanScanText(data.text);
+    resultEl.textContent = lastScanText || 'No clear text found. Try brighter lighting and crop closer to the card/slab text.';
+    applyScanSuggestions(lastScanText);
+    toast(lastScanText ? 'Scan complete' : 'No clear text found', lastScanText ? 'green' : 'gold');
+  } catch (err) {
+    resultEl.textContent = err.message || 'Scan failed. Try again with a clearer photo.';
+    toast('Scan failed', 'red');
+  }
+}
+
 document.getElementById('addCardBtn').addEventListener('click', () => openAddModal());
 document.getElementById('quickAddBtn').addEventListener('click', () => openAddModal());
 document.getElementById('modalClose').addEventListener('click', closeCardModal);
 document.getElementById('modalCancelBtn').addEventListener('click', closeCardModal);
 document.getElementById('cardModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeCardModal(); });
+document.getElementById('scanCardBtn').addEventListener('click', () => document.getElementById('scanImageInput').click());
+document.getElementById('scanImageInput').addEventListener('change', e => handleCardScan(e.target.files[0]));
+document.getElementById('useScanNotesBtn').addEventListener('click', () => {
+  if (!lastScanText) { toast('Scan a card first', 'gold'); return; }
+  const notes = document.getElementById('f-notes');
+  notes.value = [notes.value.trim(), `Scan text: ${lastScanText}`].filter(Boolean).join('
+');
+  toast('Scan text added to notes', 'green');
+});
 
 document.getElementById('modalSaveBtn').addEventListener('click', () => {
   const player = document.getElementById('f-player').value.trim();
@@ -987,12 +1031,12 @@ document.getElementById('modalSaveBtn').addEventListener('click', () => {
     touched = cards[idx];
     toast('Card updated', 'gold');
   } else {
-    const newCard = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), sold: false, sellPrice: null, paymentMethod: '', saleDate: '', saleNotes: '', ...data };
+    const newCard = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), sold: false, sellPrice: null, paymentMethod: '', saleDate: '', saleShow: '', saleNotes: '', ...data };
     cards.push(newCard);
     touched = newCard;
     toast('Card added', 'green');
   }
-  saveAndSync(touched);
+  saveAndSync(touched || cards[cards.length - 1]);
   closeCardModal();
   render();
 });
@@ -1002,6 +1046,7 @@ function openSellModal(id) {
   selectedPayment = 'Cash';
   const c = cards.find(x => x.id === id);
   document.getElementById('f-sellPrice').value = c.asking ?? '';
+  document.getElementById('f-saleShow').value = c.saleShow || '';
   document.getElementById('f-saleNotes').value = '';
   document.querySelectorAll('.pay-option').forEach(btn => btn.classList.toggle('active', btn.dataset.pay === selectedPayment));
 
@@ -1055,6 +1100,7 @@ document.getElementById('sellConfirmBtn').addEventListener('click', () => {
   cards[idx].sellPrice = sellPrice;
   cards[idx].paymentMethod = selectedPayment;
   cards[idx].saleDate = todayISO();
+  cards[idx].saleShow = document.getElementById('f-saleShow').value.trim();
   cards[idx].saleNotes = document.getElementById('f-saleNotes').value.trim();
   saveAndSync(cards[idx]);
   closeSellModal();
@@ -1077,6 +1123,7 @@ document.getElementById('tableBody').addEventListener('click', e => {
       cards[idx].sellPrice = null;
       cards[idx].paymentMethod = '';
       cards[idx].saleDate = '';
+      cards[idx].saleShow = '';
       cards[idx].saleNotes = '';
       saveAndSync(cards[idx]);
       render();
@@ -1099,12 +1146,12 @@ function cardToRow(c) {
   return [
     c.player, c.sport, c.box || '', c.year, c.set, c.grade, c.cost, c.asking || '',
     c.sellPrice || '', pl.toFixed(2), c.sold ? 'Yes' : 'No', c.paymentMethod || '',
-    c.saleDate || '', c.notes || '', c.saleNotes || ''
+    c.saleDate || '', c.saleShow || '', c.notes || '', c.saleNotes || ''
   ].map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(',');
 }
 
 function downloadCSV(filename, rows) {
-  const headers = ['Player','Sport','Box/Location','Year','Set','Grade','Cost','Sticker Price','Sell Price','P/L','Sold','Payment','Sale Date','Notes','Sale Notes'];
+  const headers = ['Player','Sport','Box/Location','Year','Set','Grade','Cost','Sticker Price','Sell Price','P/L','Sold','Payment','Sale Date','Show/Event','Notes','Sale Notes'];
   const csv = [headers.join(','), ...rows.map(cardToRow)].join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
@@ -1127,7 +1174,13 @@ function openSummary() {
     acc[key] = (acc[key] || 0) + (c.sellPrice||0);
     return acc;
   }, {});
+  const byShow = soldToday.reduce((acc,c) => {
+    const key = c.saleShow || 'No show entered';
+    acc[key] = (acc[key] || 0) + (c.sellPrice||0);
+    return acc;
+  }, {});
   const paymentRows = Object.entries(byPay).map(([k,v]) => `<div class="row"><span>${esc(k)}</span><span class="money">${fmt(v)}</span></div>`).join('') || '<div class="muted">No sales recorded today yet.</div>';
+  const showRows = Object.entries(byShow).map(([k,v]) => `<div class="row"><span>${esc(k)}</span><span class="money">${fmt(v)}</span></div>`).join('');
 
   document.getElementById('summaryBody').innerHTML = `
     <div class="sell-summary">
@@ -1137,6 +1190,7 @@ function openSummary() {
       <div class="row"><span>Estimated Profit</span><span class="money ${profit >= 0 ? 'profit pos' : 'profit neg'}">${fmtSigned(profit)}</span></div>
       <hr class="sell-divider">
       ${paymentRows}
+      ${showRows ? '<hr class="sell-divider"><div class="tiny muted" style="margin-bottom:6px">Sales by show/event</div>' + showRows : ''}
     </div>
     <div class="tiny muted">Tip: export today's sales after each show, then save the CSV with the show name.</div>
   `;
@@ -1189,7 +1243,6 @@ async function signIn() {
   document.getElementById('loginPassword').value = '';
   await init();
 }
-
 async function signOut() {
   await sb.auth.signOut();
   cards = [];
@@ -1199,22 +1252,13 @@ async function signOut() {
   render();
   await init();
 }
-
 document.getElementById('loginBtn').addEventListener('click', signIn);
 document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
 document.getElementById('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
 document.getElementById('signOutBtn').addEventListener('click', signOut);
-document.getElementById('syncIndicator').addEventListener('click', async () => {
-  await flushPending();
-  try { cards = await pullAll(); saveLocal(); render(); } catch (e) {}
-});
-
-window.addEventListener('online', async () => {
-  updateSyncIndicator();
-  await flushPending();
-});
+document.getElementById('syncIndicator').addEventListener('click', async () => { await flushPending(); try { cards = await pullAll(); saveLocal(); render(); } catch (e) {} });
+window.addEventListener('online', async () => { updateSyncIndicator(); await flushPending(); });
 window.addEventListener('offline', updateSyncIndicator);
-
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
   const loginOverlay = document.getElementById('loginOverlay');
@@ -1224,18 +1268,14 @@ async function init() {
     return;
   }
   loginOverlay.classList.remove('show');
-  // Render cached data immediately
   render();
   updateSyncIndicator();
-  // Then refresh from cloud
   try {
     const cloudCards = await pullAll();
     cards = cloudCards;
     saveLocal();
     render();
-  } catch (e) {
-    toast('Offline — using cached data', 'gold');
-  }
+  } catch (e) { toast('Offline — using cached data', 'gold'); }
   flushPending();
 }
 
