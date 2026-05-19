@@ -930,21 +930,16 @@ function closeCardModal() {
 let lastScanText = '';
 function cleanScanText(text) {
   return String(text || '')
-    .replace(/[^\S
-]+/g, ' ')
-    .replace(/
-{3,}/g, '
-
-')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 function applyScanSuggestions(text) {
   const t = cleanScanText(text);
   if (!t) return;
-  const lines = t.split(/
-+/).map(x => x.trim()).filter(Boolean);
-  const yearMatch = t.match(/(19\d{2}|20\d{2})/);
-  const gradeMatch = t.match(/(PSA|BGS|SGC|CGC|CSG)\s*(?:GEM\s*MT|MINT|NM-MT|[A-Z ]*)?\s*(10|9\.5|9|8\.5|8|7\.5|7)/i);
+  const lines = t.split(/\n+/).map(x => x.trim()).filter(Boolean);
+  const yearMatch = t.match(/\b(19\d{2}|20\d{2})\b/);
+  const gradeMatch = t.match(/\b(PSA|BGS|SGC|CGC|CSG)\s*(?:GEM\s*MT|MINT|NM-MT|[A-Z ]*)?\s*(10|9\.5|9|8\.5|8|7\.5|7)\b/i);
   const likelyPlayer = lines.find(line =>
     /^[A-Z0-9 .'-]{4,35}$/.test(line) &&
     !/^(TOPPS|PANINI|DONRUSS|PRIZM|OPTIC|SELECT|PSA|BGS|SGC|GEM|MINT|BASEBALL|BASKETBALL|FOOTBALL)$/i.test(line)
@@ -999,8 +994,7 @@ document.getElementById('scanImageInput').addEventListener('change', e => handle
 document.getElementById('useScanNotesBtn').addEventListener('click', () => {
   if (!lastScanText) { toast('Scan a card first', 'gold'); return; }
   const notes = document.getElementById('f-notes');
-  notes.value = [notes.value.trim(), `Scan text: ${lastScanText}`].filter(Boolean).join('
-');
+  notes.value = [notes.value.trim(), `Scan text: ${lastScanText}`].filter(Boolean).join('\n');
   toast('Scan text added to notes', 'green');
 });
 
