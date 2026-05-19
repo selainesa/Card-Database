@@ -417,33 +417,6 @@
   .sync-indicator.pending { color: var(--accent); border-color: rgba(240,192,64,.3); }
   .sync-indicator.offline { color: var(--red); border-color: rgba(255,84,84,.3); }
 
-
-  .scan-panel {
-    background: var(--surface2);
-    border: 1px dashed rgba(240,192,64,.45);
-    border-radius: 10px;
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .scan-panel .scan-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .scan-help { color: var(--muted); font-size: 12px; line-height: 1.4; }
-  .scan-result {
-    display: none;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px;
-    white-space: pre-wrap;
-    max-height: 120px;
-    overflow-y: auto;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--text);
-  }
-  .scan-result.show { display: block; }
-
   @media (max-width: 860px) {
     header { align-items: flex-start; flex-direction: column; padding: 14px 16px; }
     .header-actions { width: 100%; justify-content: stretch; }
@@ -458,7 +431,6 @@
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
 
@@ -567,6 +539,10 @@
           <input type="text" id="f-box" placeholder="e.g. $5 Box, Case 1, Row B">
         </div>
         <div class="field">
+          <label>Qty In Stock *</label>
+          <input type="number" id="f-qtyInStock" min="0" step="1" placeholder="1">
+        </div>
+        <div class="field">
           <label>Year</label>
           <input type="text" id="f-year" placeholder="e.g. 2011">
         </div>
@@ -585,18 +561,6 @@
         <div class="field">
           <label>Sticker / Asking Price ($)</label>
           <input type="number" id="f-asking" min="0" step="0.01" placeholder="0.00">
-        </div>
-        <div class="field span2">
-          <label>Camera Scan</label>
-          <div class="scan-panel">
-            <div class="scan-actions">
-              <button type="button" class="btn btn-ghost btn-sm" id="scanCardBtn">📷 Scan Card Text</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="useScanNotesBtn">Use Scan in Notes</button>
-            </div>
-            <div class="scan-help">Take a clear photo of the front/back label or graded slab. This reads visible text only — it will not perfectly identify every card.</div>
-            <div class="scan-result" id="scanResult"></div>
-            <input type="file" id="scanImageInput" accept="image/*" capture="environment" style="display:none">
-          </div>
         </div>
         <div class="field span2">
           <label>Notes</label>
@@ -620,7 +584,11 @@
     <div class="modal-body">
       <div class="sell-summary" id="sellSummary"></div>
       <div class="field">
-        <label>Sell Price ($) *</label>
+        <label>Quantity Sold *</label>
+        <input type="number" id="f-sellQty" min="1" step="1" placeholder="1">
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label>Sale Price Total ($) *</label>
         <input type="number" id="f-sellPrice" min="0" step="0.01" placeholder="0.00">
       </div>
       <div class="quick-prices" id="quickPriceButtons"></div>
@@ -724,7 +692,7 @@ function updateSyncIndicator() {
 }
 
 let pending = loadPending();
-let cards = loadLocal().map(c => ({ box: '', paymentMethod: '', saleDate: '', saleShow: '', saleNotes: '', ...c }));
+let cards = loadLocal().map(c => ({ box: '', qtyInStock: c.sold ? 0 : 1, qtySold: c.sold ? 1 : 0, paymentMethod: '', saleDate: '', saleShow: '', saleNotes: '', ...c }));
 let editingId = null;
 let sellingId = null;
 let sortCol = 'player';
@@ -763,23 +731,26 @@ function money(n) {
   return fmt(n);
 }
 function getPL(c) {
-  return c.sold ? (c.sellPrice||0)-(c.cost||0) : (c.asking||0)-(c.cost||0);
+  const qtySold = Number(c.qtySold || 0);
+  const qtyInStock = Number(c.qtyInStock || 0);
+  if (qtySold > 0) return Number(c.sellPrice || 0) - (Number(c.cost || 0) * qtySold);
+  return (Number(c.asking || 0) - Number(c.cost || 0)) * qtyInStock;
 }
 
 function renderShowStats() {
-  const active = cards.filter(c => !c.sold);
+  const active = cards.filter(c => Number(c.qtyInStock || 0) > 0);
   const today = todayISO();
-  const soldToday = cards.filter(c => c.sold && c.saleDate === today);
+  const soldToday = cards.filter(c => Number(c.qtySold || 0) > 0 && c.saleDate === today);
   const todayRevenue = soldToday.reduce((s,c) => s + (c.sellPrice||0), 0);
   const todayProfit = soldToday.reduce((s,c) => s + getPL(c), 0);
-  const activeCost = active.reduce((s,c) => s + (c.cost||0), 0);
-  const activeSticker = active.reduce((s,c) => s + (c.asking||0), 0);
+  const activeCost = active.reduce((s,c) => s + ((c.cost||0) * Number(c.qtyInStock || 0)), 0);
+  const activeSticker = active.reduce((s,c) => s + ((c.asking||0) * Number(c.qtyInStock || 0)), 0);
 
   const stats = [
-    { label: 'Sold Today', value: soldToday.length, cls: 'gold' },
+    { label: 'Qty Sold Today', value: soldToday.reduce((s,c) => s + Number(c.qtySold || 0), 0), cls: 'gold' },
     { label: 'Today Revenue', value: fmt(todayRevenue), cls: 'gold' },
     { label: 'Today Profit', value: fmtSigned(todayProfit), cls: todayProfit >= 0 ? 'pos' : '' },
-    { label: 'For Sale', value: active.length, cls: '' },
+    { label: 'Cards In Stock', value: active.reduce((s,c) => s + Number(c.qtyInStock || 0), 0), cls: '' },
     { label: 'Active Cost', value: fmt(activeCost), cls: '' },
     { label: 'Sticker Value', value: fmt(activeSticker), cls: '' },
   ];
@@ -796,8 +767,8 @@ function getFiltered() {
   const sport = document.getElementById('sportFilter').value;
 
   return cards.filter(c => {
-    if (filterStatus === 'active' && c.sold) return false;
-    if (filterStatus === 'sold' && !c.sold) return false;
+    if (filterStatus === 'active' && Number(c.qtyInStock || 0) <= 0) return false;
+    if (filterStatus === 'sold' && Number(c.qtySold || 0) <= 0) return false;
     if (sport && c.sport !== sport) return false;
     if (q) {
       const hay = [c.player, c.sport, c.box, c.year, c.set, c.grade, c.notes, c.paymentMethod, c.saleShow, c.saleNotes].join(' ').toLowerCase();
@@ -836,7 +807,7 @@ function renderTable() {
   });
 
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state"><span class="big">NO MATCHES</span>Try another search or add a new card.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="15"><div class="empty-state"><span class="big">NO MATCHES</span>Try another search or add a new card.</div></td></tr>`;
     return;
   }
 
@@ -855,13 +826,13 @@ function renderTable() {
       <td>${esc(c.set||'—')}</td>
       <td>${c.grade ? `<span class="grade-badge ${gradeClass(gradeNum)}">${esc(c.grade)}</span>` : '<span class="muted">—</span>'}</td>
       <td class="money">${money(c.cost)}</td>
-      <td class="money">${c.sold ? '<span class="muted">—</span>' : money(c.asking)}</td>
-      <td>${c.sold ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="sold-tag">✓ sold</span><span class="money">${money(c.sellPrice)}</span>${saleMeta}</div>` : '<span class="muted">—</span>'}</td>
+      <td class="money">${Number(c.qtyInStock || 0) <= 0 ? '<span class="muted">—</span>' : money(c.asking)}</td>
+      <td>${Number(c.qtySold || 0) > 0 ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="sold-tag">✓ sold</span><span class="money">${money(c.sellPrice)}</span>${saleMeta}</div>` : '<span class="muted">—</span>'}</td>
       <td><span class="tiny">${c.sold ? esc(c.saleShow || '—') : '—'}</span></td>
       <td class="money profit ${plCls}">${plStr}</td>
       <td class="notes-cell" title="${esc(c.notes||c.saleNotes||'')}">${esc(c.notes||c.saleNotes||'—')}</td>
       <td class="actions-cell">
-        ${!c.sold ? `<button class="btn btn-sell btn-sm sell-btn" data-id="${c.id}">Sell</button>` : `<button class="btn btn-ghost btn-sm unsell-btn" data-id="${c.id}">Undo</button>`}
+        ${Number(c.qtyInStock || 0) > 0 ? `<button class="btn btn-sell btn-sm sell-btn" data-id="${c.id}">Sell</button>` : `<button class="btn btn-ghost btn-sm unsell-btn" data-id="${c.id}">Undo</button>`}
         <button class="btn btn-ghost btn-sm edit-btn" data-id="${c.id}">Edit</button>
         <button class="btn btn-danger btn-sm del-btn" data-id="${c.id}">✕</button>
       </td>
@@ -908,15 +879,13 @@ function openAddModal(card = null) {
   document.getElementById('f-player').value = card?.player || '';
   document.getElementById('f-sport').value = card?.sport || '';
   document.getElementById('f-box').value = card?.box || '';
+  document.getElementById('f-qtyInStock').value = card?.qtyInStock ?? 1;
   document.getElementById('f-year').value = card?.year || '';
   document.getElementById('f-set').value = card?.set || '';
   document.getElementById('f-grade').value = card?.grade || '';
   document.getElementById('f-cost').value = card?.cost ?? '';
   document.getElementById('f-asking').value = card?.asking ?? '';
   document.getElementById('f-notes').value = card?.notes || '';
-  lastScanText = '';
-  const scanResult = document.getElementById('scanResult');
-  if (scanResult) { scanResult.textContent = ''; scanResult.classList.remove('show'); }
   document.getElementById('cardModal').classList.add('open');
   setTimeout(() => document.getElementById('f-player').focus(), 100);
 }
@@ -926,85 +895,21 @@ function closeCardModal() {
   editingId = null;
 }
 
-
-let lastScanText = '';
-function cleanScanText(text) {
-  return String(text || '')
-    .replace(/[^\S\n]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-function applyScanSuggestions(text) {
-  const t = cleanScanText(text);
-  if (!t) return;
-  const lines = t.split(/\n+/).map(x => x.trim()).filter(Boolean);
-  const yearMatch = t.match(/\b(19\d{2}|20\d{2})\b/);
-  const gradeMatch = t.match(/\b(PSA|BGS|SGC|CGC|CSG)\s*(?:GEM\s*MT|MINT|NM-MT|[A-Z ]*)?\s*(10|9\.5|9|8\.5|8|7\.5|7)\b/i);
-  const likelyPlayer = lines.find(line =>
-    /^[A-Z0-9 .'-]{4,35}$/.test(line) &&
-    !/^(TOPPS|PANINI|DONRUSS|PRIZM|OPTIC|SELECT|PSA|BGS|SGC|GEM|MINT|BASEBALL|BASKETBALL|FOOTBALL)$/i.test(line)
-  );
-
-  if (likelyPlayer && !document.getElementById('f-player').value.trim()) {
-    document.getElementById('f-player').value = likelyPlayer.replace(/\s+/g, ' ');
-  }
-  if (yearMatch && !document.getElementById('f-year').value.trim()) {
-    document.getElementById('f-year').value = yearMatch[1];
-  }
-  if (gradeMatch && !document.getElementById('f-grade').value.trim()) {
-    document.getElementById('f-grade').value = `${gradeMatch[1].toUpperCase()} ${gradeMatch[2]}`;
-  }
-  if (!document.getElementById('f-set').value.trim()) {
-    const setLine = lines.find(line => /(topps|panini|donruss|prizm|optic|select|bowman|mosaic|contenders|score|chronicles|absolute|heritage|finest|chrome)/i.test(line));
-    if (setLine) document.getElementById('f-set').value = setLine;
-  }
-}
-async function handleCardScan(file) {
-  if (!file) return;
-  const resultEl = document.getElementById('scanResult');
-  resultEl.classList.add('show');
-  resultEl.textContent = 'Scanning image text…';
-  toast('Scanning card text…', 'gold');
-  try {
-    if (!window.Tesseract) throw new Error('Scanner library did not load. Check connection and refresh.');
-    const { data } = await Tesseract.recognize(file, 'eng', {
-      logger: m => {
-        if (m.status && typeof m.progress === 'number') {
-          resultEl.textContent = `${m.status} ${Math.round(m.progress * 100)}%`;
-        }
-      }
-    });
-    lastScanText = cleanScanText(data.text);
-    resultEl.textContent = lastScanText || 'No clear text found. Try brighter lighting and crop closer to the card/slab text.';
-    applyScanSuggestions(lastScanText);
-    toast(lastScanText ? 'Scan complete' : 'No clear text found', lastScanText ? 'green' : 'gold');
-  } catch (err) {
-    resultEl.textContent = err.message || 'Scan failed. Try again with a clearer photo.';
-    toast('Scan failed', 'red');
-  }
-}
-
 document.getElementById('addCardBtn').addEventListener('click', () => openAddModal());
 document.getElementById('quickAddBtn').addEventListener('click', () => openAddModal());
 document.getElementById('modalClose').addEventListener('click', closeCardModal);
 document.getElementById('modalCancelBtn').addEventListener('click', closeCardModal);
 document.getElementById('cardModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeCardModal(); });
-document.getElementById('scanCardBtn').addEventListener('click', () => document.getElementById('scanImageInput').click());
-document.getElementById('scanImageInput').addEventListener('change', e => handleCardScan(e.target.files[0]));
-document.getElementById('useScanNotesBtn').addEventListener('click', () => {
-  if (!lastScanText) { toast('Scan a card first', 'gold'); return; }
-  const notes = document.getElementById('f-notes');
-  notes.value = [notes.value.trim(), `Scan text: ${lastScanText}`].filter(Boolean).join('\n');
-  toast('Scan text added to notes', 'green');
-});
 
 document.getElementById('modalSaveBtn').addEventListener('click', () => {
   const player = document.getElementById('f-player').value.trim();
   const sport = document.getElementById('f-sport').value;
   const cost = parseFloat(document.getElementById('f-cost').value);
+  const qtyInStock = parseInt(document.getElementById('f-qtyInStock').value, 10);
   if (!player) { toast('Player name is required', 'red'); return; }
   if (!sport) { toast('Sport is required', 'red'); return; }
   if (isNaN(cost)) { toast('Cost is required', 'red'); return; }
+  if (isNaN(qtyInStock) || qtyInStock < 0) { toast('Qty in stock is required', 'red'); return; }
 
   const data = {
     player,
@@ -1013,6 +918,8 @@ document.getElementById('modalSaveBtn').addEventListener('click', () => {
     year: document.getElementById('f-year').value.trim(),
     set: document.getElementById('f-set').value.trim(),
     grade: document.getElementById('f-grade').value.trim(),
+    qtyInStock,
+    sold: qtyInStock <= 0,
     cost,
     asking: parseFloat(document.getElementById('f-asking').value) || null,
     notes: document.getElementById('f-notes').value.trim(),
@@ -1025,7 +932,7 @@ document.getElementById('modalSaveBtn').addEventListener('click', () => {
     touched = cards[idx];
     toast('Card updated', 'gold');
   } else {
-    const newCard = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), sold: false, sellPrice: null, paymentMethod: '', saleDate: '', saleShow: '', saleNotes: '', ...data };
+    const newCard = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), qtySold: 0, sellPrice: 0, paymentMethod: '', saleDate: '', saleShow: '', saleNotes: '', ...data };
     cards.push(newCard);
     touched = newCard;
     toast('Card added', 'green');
@@ -1039,6 +946,8 @@ function openSellModal(id) {
   sellingId = id;
   selectedPayment = 'Cash';
   const c = cards.find(x => x.id === id);
+  document.getElementById('f-sellQty').value = 1;
+  document.getElementById('f-sellQty').max = Math.max(1, Number(c.qtyInStock || 1));
   document.getElementById('f-sellPrice').value = c.asking ?? '';
   document.getElementById('f-saleShow').value = c.saleShow || '';
   document.getElementById('f-saleNotes').value = '';
@@ -1049,6 +958,7 @@ function openSellModal(id) {
     <div class="row"><span>Player</span><span>${esc(c.player)}</span></div>
     <div class="row"><span>Card</span><span>${esc(details || '—')}</span></div>
     <div class="row"><span>Location</span><span>${esc(c.box || '—')}</span></div>
+    <div class="row"><span>Qty In Stock</span><span>${Number(c.qtyInStock || 0)}</span></div>
     <hr class="sell-divider">
     <div class="row"><span>Cost</span><span class="money">${money(c.cost)}</span></div>
     <div class="row"><span>Sticker</span><span class="money">${money(c.asking)}</span></div>
@@ -1086,12 +996,18 @@ document.getElementById('quickPriceButtons').addEventListener('click', e => {
 });
 
 document.getElementById('sellConfirmBtn').addEventListener('click', () => {
+  const sellQty = parseInt(document.getElementById('f-sellQty').value, 10);
   const sellPrice = parseFloat(document.getElementById('f-sellPrice').value);
-  if (isNaN(sellPrice) || sellPrice < 0) { toast('Enter a valid sell price', 'red'); return; }
+  if (isNaN(sellQty) || sellQty < 1) { toast('Enter a valid quantity sold', 'red'); return; }
+  if (isNaN(sellPrice) || sellPrice < 0) { toast('Enter a valid sale price', 'red'); return; }
   const idx = cards.findIndex(c => c.id === sellingId);
-  const pl = sellPrice - cards[idx].cost;
-  cards[idx].sold = true;
-  cards[idx].sellPrice = sellPrice;
+  const currentStock = Number(cards[idx].qtyInStock || 0);
+  if (sellQty > currentStock) { toast(`Only ${currentStock} in stock`, 'red'); return; }
+  const pl = sellPrice - (Number(cards[idx].cost || 0) * sellQty);
+  cards[idx].qtyInStock = currentStock - sellQty;
+  cards[idx].qtySold = Number(cards[idx].qtySold || 0) + sellQty;
+  cards[idx].sold = cards[idx].qtyInStock <= 0;
+  cards[idx].sellPrice = Number(cards[idx].sellPrice || 0) + sellPrice;
   cards[idx].paymentMethod = selectedPayment;
   cards[idx].saleDate = todayISO();
   cards[idx].saleShow = document.getElementById('f-saleShow').value.trim();
@@ -1099,7 +1015,7 @@ document.getElementById('sellConfirmBtn').addEventListener('click', () => {
   saveAndSync(cards[idx]);
   closeSellModal();
   render();
-  toast(`Sold! P/L: ${pl >= 0 ? '+' : ''}$${Math.abs(pl).toFixed(2)}`, pl >= 0 ? 'green' : 'red');
+  toast(`Sold ${sellQty}! P/L: ${pl >= 0 ? '+' : ''}$${Math.abs(pl).toFixed(2)}`, pl >= 0 ? 'green' : 'red');
 });
 
 document.getElementById('tableBody').addEventListener('click', e => {
@@ -1112,9 +1028,11 @@ document.getElementById('tableBody').addEventListener('click', e => {
   if (editBtn) openAddModal(cards.find(c => c.id === editBtn.dataset.id));
   if (unsellBtn) {
     const idx = cards.findIndex(c => c.id === unsellBtn.dataset.id);
-    if (idx >= 0 && confirm('Move this card back to For Sale?')) {
+    if (idx >= 0 && confirm('Undo all sales for this row and move quantity back to stock?')) {
+      cards[idx].qtyInStock = Number(cards[idx].qtyInStock || 0) + Number(cards[idx].qtySold || 0);
+      cards[idx].qtySold = 0;
       cards[idx].sold = false;
-      cards[idx].sellPrice = null;
+      cards[idx].sellPrice = 0;
       cards[idx].paymentMethod = '';
       cards[idx].saleDate = '';
       cards[idx].saleShow = '';
@@ -1179,7 +1097,7 @@ function openSummary() {
   document.getElementById('summaryBody').innerHTML = `
     <div class="sell-summary">
       <div class="row"><span>Date</span><span>${today}</span></div>
-      <div class="row"><span>Cards Sold</span><span>${soldToday.length}</span></div>
+      <div class="row"><span>Qty Sold</span><span>${soldToday.reduce((s,c) => s + Number(c.qtySold || 0), 0)}</span></div>
       <div class="row"><span>Total Revenue</span><span class="money">${fmt(revenue)}</span></div>
       <div class="row"><span>Estimated Profit</span><span class="money ${profit >= 0 ? 'profit pos' : 'profit neg'}">${fmtSigned(profit)}</span></div>
       <hr class="sell-divider">
