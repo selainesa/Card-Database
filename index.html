@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Smith &amp; Sons Inventory</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -198,7 +197,7 @@
   .filter-tab.active { background: var(--accent); color: #111; font-weight: 700; }
 
   .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
-  table { width: 100%; border-collapse: collapse; min-width: 1140px; }
+  table { width: 100%; border-collapse: collapse; min-width: 1040px; }
   thead tr { background: var(--surface2); }
   th {
     font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
@@ -353,70 +352,6 @@
   .toast-dot.red { background: var(--red); }
   .toast-dot.gold { background: var(--accent); }
 
-
-  .login-overlay {
-    position: fixed; inset: 0; z-index: 500;
-    background: var(--bg);
-    display: none;
-    align-items: center; justify-content: center;
-    padding: 20px;
-  }
-  .login-overlay.show { display: flex; }
-  .login-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 30px;
-    width: 100%;
-    max-width: 380px;
-  }
-  .login-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 36px;
-    letter-spacing: 3px;
-    color: var(--accent);
-    text-align: center;
-    line-height: 1;
-  }
-  .login-sub {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--muted);
-    text-align: center;
-    margin: 6px 0 22px;
-  }
-  .login-card .field { margin-bottom: 12px; }
-  .login-card input { width: 100%; }
-  .login-card .btn { width: 100%; margin-top: 10px; }
-  .login-error {
-    color: var(--red);
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    min-height: 16px;
-    margin: 4px 0 0;
-    text-align: center;
-  }
-
-  .sync-indicator {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    padding: 6px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid var(--border);
-    background: transparent;
-    user-select: none;
-  }
-  .sync-indicator.synced { color: var(--green); border-color: rgba(61,220,132,.3); }
-  .sync-indicator.pending { color: var(--accent); border-color: rgba(240,192,64,.3); }
-  .sync-indicator.offline { color: var(--red); border-color: rgba(255,84,84,.3); }
-
   @media (max-width: 860px) {
     header { align-items: flex-start; flex-direction: column; padding: 14px 16px; }
     .header-actions { width: 100%; justify-content: stretch; }
@@ -430,35 +365,15 @@
     .payment-grid, .quick-prices { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-
-<div class="login-overlay" id="loginOverlay">
-  <div class="login-card">
-    <div class="login-title">Smith &amp; Sons</div>
-    <div class="login-sub">Inventory — sign in</div>
-    <div class="field">
-      <label>Username</label>
-      <input type="text" id="loginEmail" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="smithandsons">
-    </div>
-    <div class="field">
-      <label>Password</label>
-      <input type="password" id="loginPassword" autocomplete="current-password">
-    </div>
-    <div class="login-error" id="loginError"></div>
-    <button class="btn btn-primary btn-lg" id="loginBtn">Sign In</button>
-  </div>
-</div>
 
 <header>
   <div class="logo">Smith &amp; Sons <span>Inventory</span></div>
   <div class="header-actions">
-    <span class="sync-indicator synced" id="syncIndicator" title="All changes saved">● synced</span>
     <button class="btn btn-ghost btn-sm" id="exportBtn">⬇ Export CSV</button>
     <button class="btn btn-orange btn-sm" id="showSummaryBtn">Show Summary</button>
     <button class="btn btn-primary" id="addCardBtn">+ Add Card</button>
-    <button class="btn btn-ghost btn-sm" id="signOutBtn">Sign Out</button>
   </div>
 </header>
 
@@ -504,7 +419,6 @@
           <th data-col="cost">Cost <span class="sort-icon">↕</span></th>
           <th data-col="asking">Sticker <span class="sort-icon">↕</span></th>
           <th data-col="sellPrice">Sold For <span class="sort-icon">↕</span></th>
-          <th data-col="saleShow">Show <span class="sort-icon">↕</span></th>
           <th data-col="profit">P/L <span class="sort-icon">↕</span></th>
           <th>Notes</th>
           <th>Actions</th>
@@ -537,10 +451,6 @@
         <div class="field">
           <label>Box / Location</label>
           <input type="text" id="f-box" placeholder="e.g. $5 Box, Case 1, Row B">
-        </div>
-        <div class="field">
-          <label>Qty In Stock *</label>
-          <input type="number" id="f-qtyInStock" min="0" step="1" placeholder="1">
         </div>
         <div class="field">
           <label>Year</label>
@@ -584,11 +494,7 @@
     <div class="modal-body">
       <div class="sell-summary" id="sellSummary"></div>
       <div class="field">
-        <label>Quantity Sold *</label>
-        <input type="number" id="f-sellQty" min="1" step="1" placeholder="1">
-      </div>
-      <div class="field" style="margin-top:12px">
-        <label>Sale Price Total ($) *</label>
+        <label>Sell Price ($) *</label>
         <input type="number" id="f-sellPrice" min="0" step="0.01" placeholder="0.00">
       </div>
       <div class="quick-prices" id="quickPriceButtons"></div>
@@ -600,10 +506,6 @@
           <button class="pay-option" data-pay="Card">Card</button>
           <button class="pay-option" data-pay="Other">Other</button>
         </div>
-      </div>
-      <div class="field" style="margin-top:12px">
-        <label>Show / Event</label>
-        <input type="text" id="f-saleShow" placeholder="e.g. Knoxville Card Show, Tri-Cities Expo…">
       </div>
       <div class="field" style="margin-top:12px">
         <label>Sale Notes</label>
@@ -638,61 +540,14 @@
 
 <script>
 const STORAGE_KEY = 'thebinder_v1';
-const PENDING_KEY = 'thebinder_pending_v1';
-const SUPABASE_URL = 'https://sxivcnutczuzlrbgxwfi.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_5HNCuhEbY6JHNXccvb8dMw_OuX64Kbg';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function loadLocal() {
+function load() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
   catch { return []; }
 }
-function saveLocal() { localStorage.setItem(STORAGE_KEY, JSON.stringify(cards)); }
-function loadPending() {
-  try {
-    const p = JSON.parse(localStorage.getItem(PENDING_KEY));
-    return (p && Array.isArray(p.upserts) && Array.isArray(p.deletes)) ? p : { upserts: [], deletes: [] };
-  } catch { return { upserts: [], deletes: [] }; }
-}
-function savePending() { localStorage.setItem(PENDING_KEY, JSON.stringify(pending)); }
-function queueUpsert(id) { pending.deletes = pending.deletes.filter(x => x !== id); if (!pending.upserts.includes(id)) pending.upserts.push(id); savePending(); updateSyncIndicator(); }
-function queueDelete(id) { pending.upserts = pending.upserts.filter(x => x !== id); if (!pending.deletes.includes(id)) pending.deletes.push(id); savePending(); updateSyncIndicator(); }
-function clearPending(id) { pending.upserts = pending.upserts.filter(x => x !== id); pending.deletes = pending.deletes.filter(x => x !== id); savePending(); updateSyncIndicator(); }
+function save(cards) { localStorage.setItem(STORAGE_KEY, JSON.stringify(cards)); }
 
-function toDbRow(c) {
-  return {
-    id: c.id, player: c.player, sport: c.sport, box: c.box || '', year: c.year || '', card_set: c.set || '', grade: c.grade || '',
-    cost: Number(c.cost) || 0, asking: c.asking ?? null, notes: c.notes || '', sold: !!c.sold,
-    sell_price: c.sellPrice ?? null, payment_method: c.paymentMethod || '', sale_date: c.saleDate || '', sale_show: c.saleShow || '', sale_notes: c.saleNotes || ''
-  };
-}
-function fromDbRow(r) {
-  return {
-    id: r.id, player: r.player, sport: r.sport, box: r.box || '', year: r.year || '', set: r.card_set || '', grade: r.grade || '',
-    cost: Number(r.cost) || 0, asking: r.asking != null ? Number(r.asking) : null, notes: r.notes || '', sold: !!r.sold,
-    sellPrice: r.sell_price != null ? Number(r.sell_price) : null, paymentMethod: r.payment_method || '', saleDate: r.sale_date || '', saleShow: r.sale_show || '', saleNotes: r.sale_notes || ''
-  };
-}
-async function pushUpsert(card) { const { error } = await sb.from('cards').upsert(toDbRow(card)); if (error) throw error; }
-async function pushDelete(id) { const { error } = await sb.from('cards').delete().eq('id', id); if (error) throw error; }
-async function pullAll() { const { data, error } = await sb.from('cards').select('*'); if (error) throw error; return data.map(fromDbRow); }
-function saveAndSync(card) { saveLocal(); pushUpsert(card).then(() => clearPending(card.id)).catch(() => queueUpsert(card.id)); }
-function saveAndSyncDelete(id) { saveLocal(); pushDelete(id).then(() => clearPending(id)).catch(() => queueDelete(id)); }
-async function flushPending() {
-  if (!navigator.onLine) return;
-  for (const id of [...pending.upserts]) { const card = cards.find(c => c.id === id); if (!card) { clearPending(id); continue; } try { await pushUpsert(card); clearPending(id); } catch (e) {} }
-  for (const id of [...pending.deletes]) { try { await pushDelete(id); clearPending(id); } catch (e) {} }
-}
-function updateSyncIndicator() {
-  const el = document.getElementById('syncIndicator'); if (!el) return;
-  const count = pending.upserts.length + pending.deletes.length;
-  if (!navigator.onLine && count > 0) { el.className = 'sync-indicator offline'; el.textContent = `● offline (${count})`; el.title = 'No connection. Changes will sync when online.'; }
-  else if (count > 0) { el.className = 'sync-indicator pending'; el.textContent = `● ${count} pending`; el.title = 'Click to retry syncing.'; }
-  else { el.className = 'sync-indicator synced'; el.textContent = '● synced'; el.title = 'All changes saved to cloud.'; }
-}
-
-let pending = loadPending();
-let cards = loadLocal().map(c => ({ box: '', qtyInStock: c.sold ? 0 : 1, qtySold: c.sold ? 1 : 0, paymentMethod: '', saleDate: '', saleShow: '', saleNotes: '', ...c }));
+let cards = load().map(c => ({ box: '', paymentMethod: '', saleDate: '', saleNotes: '', ...c }));
 let editingId = null;
 let sellingId = null;
 let sortCol = 'player';
@@ -731,26 +586,23 @@ function money(n) {
   return fmt(n);
 }
 function getPL(c) {
-  const qtySold = Number(c.qtySold || 0);
-  const qtyInStock = Number(c.qtyInStock || 0);
-  if (qtySold > 0) return Number(c.sellPrice || 0) - (Number(c.cost || 0) * qtySold);
-  return (Number(c.asking || 0) - Number(c.cost || 0)) * qtyInStock;
+  return c.sold ? (c.sellPrice||0)-(c.cost||0) : (c.asking||0)-(c.cost||0);
 }
 
 function renderShowStats() {
-  const active = cards.filter(c => Number(c.qtyInStock || 0) > 0);
+  const active = cards.filter(c => !c.sold);
   const today = todayISO();
-  const soldToday = cards.filter(c => Number(c.qtySold || 0) > 0 && c.saleDate === today);
+  const soldToday = cards.filter(c => c.sold && c.saleDate === today);
   const todayRevenue = soldToday.reduce((s,c) => s + (c.sellPrice||0), 0);
   const todayProfit = soldToday.reduce((s,c) => s + getPL(c), 0);
-  const activeCost = active.reduce((s,c) => s + ((c.cost||0) * Number(c.qtyInStock || 0)), 0);
-  const activeSticker = active.reduce((s,c) => s + ((c.asking||0) * Number(c.qtyInStock || 0)), 0);
+  const activeCost = active.reduce((s,c) => s + (c.cost||0), 0);
+  const activeSticker = active.reduce((s,c) => s + (c.asking||0), 0);
 
   const stats = [
-    { label: 'Qty Sold Today', value: soldToday.reduce((s,c) => s + Number(c.qtySold || 0), 0), cls: 'gold' },
+    { label: 'Sold Today', value: soldToday.length, cls: 'gold' },
     { label: 'Today Revenue', value: fmt(todayRevenue), cls: 'gold' },
     { label: 'Today Profit', value: fmtSigned(todayProfit), cls: todayProfit >= 0 ? 'pos' : '' },
-    { label: 'Cards In Stock', value: active.reduce((s,c) => s + Number(c.qtyInStock || 0), 0), cls: '' },
+    { label: 'For Sale', value: active.length, cls: '' },
     { label: 'Active Cost', value: fmt(activeCost), cls: '' },
     { label: 'Sticker Value', value: fmt(activeSticker), cls: '' },
   ];
@@ -767,11 +619,11 @@ function getFiltered() {
   const sport = document.getElementById('sportFilter').value;
 
   return cards.filter(c => {
-    if (filterStatus === 'active' && Number(c.qtyInStock || 0) <= 0) return false;
-    if (filterStatus === 'sold' && Number(c.qtySold || 0) <= 0) return false;
+    if (filterStatus === 'active' && c.sold) return false;
+    if (filterStatus === 'sold' && !c.sold) return false;
     if (sport && c.sport !== sport) return false;
     if (q) {
-      const hay = [c.player, c.sport, c.box, c.year, c.set, c.grade, c.notes, c.paymentMethod, c.saleShow, c.saleNotes].join(' ').toLowerCase();
+      const hay = [c.player, c.sport, c.box, c.year, c.set, c.grade, c.notes, c.paymentMethod, c.saleNotes].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -807,7 +659,7 @@ function renderTable() {
   });
 
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="15"><div class="empty-state"><span class="big">NO MATCHES</span>Try another search or add a new card.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><span class="big">NO MATCHES</span>Try another search or add a new card.</div></td></tr>`;
     return;
   }
 
@@ -826,13 +678,12 @@ function renderTable() {
       <td>${esc(c.set||'—')}</td>
       <td>${c.grade ? `<span class="grade-badge ${gradeClass(gradeNum)}">${esc(c.grade)}</span>` : '<span class="muted">—</span>'}</td>
       <td class="money">${money(c.cost)}</td>
-      <td class="money">${Number(c.qtyInStock || 0) <= 0 ? '<span class="muted">—</span>' : money(c.asking)}</td>
-      <td>${Number(c.qtySold || 0) > 0 ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="sold-tag">✓ sold</span><span class="money">${money(c.sellPrice)}</span>${saleMeta}</div>` : '<span class="muted">—</span>'}</td>
-      <td><span class="tiny">${c.sold ? esc(c.saleShow || '—') : '—'}</span></td>
+      <td class="money">${c.sold ? '<span class="muted">—</span>' : money(c.asking)}</td>
+      <td>${c.sold ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="sold-tag">✓ sold</span><span class="money">${money(c.sellPrice)}</span>${saleMeta}</div>` : '<span class="muted">—</span>'}</td>
       <td class="money profit ${plCls}">${plStr}</td>
       <td class="notes-cell" title="${esc(c.notes||c.saleNotes||'')}">${esc(c.notes||c.saleNotes||'—')}</td>
       <td class="actions-cell">
-        ${Number(c.qtyInStock || 0) > 0 ? `<button class="btn btn-sell btn-sm sell-btn" data-id="${c.id}">Sell</button>` : `<button class="btn btn-ghost btn-sm unsell-btn" data-id="${c.id}">Undo</button>`}
+        ${!c.sold ? `<button class="btn btn-sell btn-sm sell-btn" data-id="${c.id}">Sell</button>` : `<button class="btn btn-ghost btn-sm unsell-btn" data-id="${c.id}">Undo</button>`}
         <button class="btn btn-ghost btn-sm edit-btn" data-id="${c.id}">Edit</button>
         <button class="btn btn-danger btn-sm del-btn" data-id="${c.id}">✕</button>
       </td>
@@ -879,7 +730,6 @@ function openAddModal(card = null) {
   document.getElementById('f-player').value = card?.player || '';
   document.getElementById('f-sport').value = card?.sport || '';
   document.getElementById('f-box').value = card?.box || '';
-  document.getElementById('f-qtyInStock').value = card?.qtyInStock ?? 1;
   document.getElementById('f-year').value = card?.year || '';
   document.getElementById('f-set').value = card?.set || '';
   document.getElementById('f-grade').value = card?.grade || '';
@@ -905,11 +755,9 @@ document.getElementById('modalSaveBtn').addEventListener('click', () => {
   const player = document.getElementById('f-player').value.trim();
   const sport = document.getElementById('f-sport').value;
   const cost = parseFloat(document.getElementById('f-cost').value);
-  const qtyInStock = parseInt(document.getElementById('f-qtyInStock').value, 10);
   if (!player) { toast('Player name is required', 'red'); return; }
   if (!sport) { toast('Sport is required', 'red'); return; }
   if (isNaN(cost)) { toast('Cost is required', 'red'); return; }
-  if (isNaN(qtyInStock) || qtyInStock < 0) { toast('Qty in stock is required', 'red'); return; }
 
   const data = {
     player,
@@ -918,26 +766,20 @@ document.getElementById('modalSaveBtn').addEventListener('click', () => {
     year: document.getElementById('f-year').value.trim(),
     set: document.getElementById('f-set').value.trim(),
     grade: document.getElementById('f-grade').value.trim(),
-    qtyInStock,
-    sold: qtyInStock <= 0,
     cost,
     asking: parseFloat(document.getElementById('f-asking').value) || null,
     notes: document.getElementById('f-notes').value.trim(),
   };
 
-  let touched;
   if (editingId) {
     const idx = cards.findIndex(c => c.id === editingId);
     cards[idx] = { ...cards[idx], ...data };
-    touched = cards[idx];
     toast('Card updated', 'gold');
   } else {
-    const newCard = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), qtySold: 0, sellPrice: 0, paymentMethod: '', saleDate: '', saleShow: '', saleNotes: '', ...data };
-    cards.push(newCard);
-    touched = newCard;
+    cards.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2), sold: false, sellPrice: null, paymentMethod: '', saleDate: '', saleNotes: '', ...data });
     toast('Card added', 'green');
   }
-  saveAndSync(touched || cards[cards.length - 1]);
+  save(cards);
   closeCardModal();
   render();
 });
@@ -946,10 +788,7 @@ function openSellModal(id) {
   sellingId = id;
   selectedPayment = 'Cash';
   const c = cards.find(x => x.id === id);
-  document.getElementById('f-sellQty').value = 1;
-  document.getElementById('f-sellQty').max = Math.max(1, Number(c.qtyInStock || 1));
   document.getElementById('f-sellPrice').value = c.asking ?? '';
-  document.getElementById('f-saleShow').value = c.saleShow || '';
   document.getElementById('f-saleNotes').value = '';
   document.querySelectorAll('.pay-option').forEach(btn => btn.classList.toggle('active', btn.dataset.pay === selectedPayment));
 
@@ -958,7 +797,6 @@ function openSellModal(id) {
     <div class="row"><span>Player</span><span>${esc(c.player)}</span></div>
     <div class="row"><span>Card</span><span>${esc(details || '—')}</span></div>
     <div class="row"><span>Location</span><span>${esc(c.box || '—')}</span></div>
-    <div class="row"><span>Qty In Stock</span><span>${Number(c.qtyInStock || 0)}</span></div>
     <hr class="sell-divider">
     <div class="row"><span>Cost</span><span class="money">${money(c.cost)}</span></div>
     <div class="row"><span>Sticker</span><span class="money">${money(c.asking)}</span></div>
@@ -996,26 +834,19 @@ document.getElementById('quickPriceButtons').addEventListener('click', e => {
 });
 
 document.getElementById('sellConfirmBtn').addEventListener('click', () => {
-  const sellQty = parseInt(document.getElementById('f-sellQty').value, 10);
   const sellPrice = parseFloat(document.getElementById('f-sellPrice').value);
-  if (isNaN(sellQty) || sellQty < 1) { toast('Enter a valid quantity sold', 'red'); return; }
-  if (isNaN(sellPrice) || sellPrice < 0) { toast('Enter a valid sale price', 'red'); return; }
+  if (isNaN(sellPrice) || sellPrice < 0) { toast('Enter a valid sell price', 'red'); return; }
   const idx = cards.findIndex(c => c.id === sellingId);
-  const currentStock = Number(cards[idx].qtyInStock || 0);
-  if (sellQty > currentStock) { toast(`Only ${currentStock} in stock`, 'red'); return; }
-  const pl = sellPrice - (Number(cards[idx].cost || 0) * sellQty);
-  cards[idx].qtyInStock = currentStock - sellQty;
-  cards[idx].qtySold = Number(cards[idx].qtySold || 0) + sellQty;
-  cards[idx].sold = cards[idx].qtyInStock <= 0;
-  cards[idx].sellPrice = Number(cards[idx].sellPrice || 0) + sellPrice;
+  const pl = sellPrice - cards[idx].cost;
+  cards[idx].sold = true;
+  cards[idx].sellPrice = sellPrice;
   cards[idx].paymentMethod = selectedPayment;
   cards[idx].saleDate = todayISO();
-  cards[idx].saleShow = document.getElementById('f-saleShow').value.trim();
   cards[idx].saleNotes = document.getElementById('f-saleNotes').value.trim();
-  saveAndSync(cards[idx]);
+  save(cards);
   closeSellModal();
   render();
-  toast(`Sold ${sellQty}! P/L: ${pl >= 0 ? '+' : ''}$${Math.abs(pl).toFixed(2)}`, pl >= 0 ? 'green' : 'red');
+  toast(`Sold! P/L: ${pl >= 0 ? '+' : ''}$${Math.abs(pl).toFixed(2)}`, pl >= 0 ? 'green' : 'red');
 });
 
 document.getElementById('tableBody').addEventListener('click', e => {
@@ -1028,25 +859,21 @@ document.getElementById('tableBody').addEventListener('click', e => {
   if (editBtn) openAddModal(cards.find(c => c.id === editBtn.dataset.id));
   if (unsellBtn) {
     const idx = cards.findIndex(c => c.id === unsellBtn.dataset.id);
-    if (idx >= 0 && confirm('Undo all sales for this row and move quantity back to stock?')) {
-      cards[idx].qtyInStock = Number(cards[idx].qtyInStock || 0) + Number(cards[idx].qtySold || 0);
-      cards[idx].qtySold = 0;
+    if (idx >= 0 && confirm('Move this card back to For Sale?')) {
       cards[idx].sold = false;
-      cards[idx].sellPrice = 0;
+      cards[idx].sellPrice = null;
       cards[idx].paymentMethod = '';
       cards[idx].saleDate = '';
-      cards[idx].saleShow = '';
       cards[idx].saleNotes = '';
-      saveAndSync(cards[idx]);
+      save(cards);
       render();
       toast('Sale undone', 'gold');
     }
   }
   if (delBtn) {
     if (confirm('Delete this card from inventory?')) {
-      const idToDelete = delBtn.dataset.id;
-      cards = cards.filter(c => c.id !== idToDelete);
-      saveAndSyncDelete(idToDelete);
+      cards = cards.filter(c => c.id !== delBtn.dataset.id);
+      save(cards);
       render();
       toast('Card removed', 'red');
     }
@@ -1058,12 +885,12 @@ function cardToRow(c) {
   return [
     c.player, c.sport, c.box || '', c.year, c.set, c.grade, c.cost, c.asking || '',
     c.sellPrice || '', pl.toFixed(2), c.sold ? 'Yes' : 'No', c.paymentMethod || '',
-    c.saleDate || '', c.saleShow || '', c.notes || '', c.saleNotes || ''
+    c.saleDate || '', c.notes || '', c.saleNotes || ''
   ].map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(',');
 }
 
 function downloadCSV(filename, rows) {
-  const headers = ['Player','Sport','Box/Location','Year','Set','Grade','Cost','Sticker Price','Sell Price','P/L','Sold','Payment','Sale Date','Show/Event','Notes','Sale Notes'];
+  const headers = ['Player','Sport','Box/Location','Year','Set','Grade','Cost','Sticker Price','Sell Price','P/L','Sold','Payment','Sale Date','Notes','Sale Notes'];
   const csv = [headers.join(','), ...rows.map(cardToRow)].join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
@@ -1086,23 +913,16 @@ function openSummary() {
     acc[key] = (acc[key] || 0) + (c.sellPrice||0);
     return acc;
   }, {});
-  const byShow = soldToday.reduce((acc,c) => {
-    const key = c.saleShow || 'No show entered';
-    acc[key] = (acc[key] || 0) + (c.sellPrice||0);
-    return acc;
-  }, {});
   const paymentRows = Object.entries(byPay).map(([k,v]) => `<div class="row"><span>${esc(k)}</span><span class="money">${fmt(v)}</span></div>`).join('') || '<div class="muted">No sales recorded today yet.</div>';
-  const showRows = Object.entries(byShow).map(([k,v]) => `<div class="row"><span>${esc(k)}</span><span class="money">${fmt(v)}</span></div>`).join('');
 
   document.getElementById('summaryBody').innerHTML = `
     <div class="sell-summary">
       <div class="row"><span>Date</span><span>${today}</span></div>
-      <div class="row"><span>Qty Sold</span><span>${soldToday.reduce((s,c) => s + Number(c.qtySold || 0), 0)}</span></div>
+      <div class="row"><span>Cards Sold</span><span>${soldToday.length}</span></div>
       <div class="row"><span>Total Revenue</span><span class="money">${fmt(revenue)}</span></div>
       <div class="row"><span>Estimated Profit</span><span class="money ${profit >= 0 ? 'profit pos' : 'profit neg'}">${fmtSigned(profit)}</span></div>
       <hr class="sell-divider">
       ${paymentRows}
-      ${showRows ? '<hr class="sell-divider"><div class="tiny muted" style="margin-bottom:6px">Sales by show/event</div>' + showRows : ''}
     </div>
     <div class="tiny muted">Tip: export today's sales after each show, then save the CSV with the show name.</div>
   `;
@@ -1141,57 +961,7 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// ---- Auth + initial load ----
-const LOGIN_DOMAIN = '@smithandsons.app';
-async function signIn() {
-  const raw = document.getElementById('loginEmail').value.trim().toLowerCase();
-  const password = document.getElementById('loginPassword').value;
-  const errorEl = document.getElementById('loginError');
-  errorEl.textContent = '';
-  if (!raw || !password) { errorEl.textContent = 'Enter username and password.'; return; }
-  const email = raw.includes('@') ? raw : raw + LOGIN_DOMAIN;
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) { errorEl.textContent = error.message; return; }
-  document.getElementById('loginPassword').value = '';
-  await init();
-}
-async function signOut() {
-  await sb.auth.signOut();
-  cards = [];
-  saveLocal();
-  pending = { upserts: [], deletes: [] };
-  savePending();
-  render();
-  await init();
-}
-document.getElementById('loginBtn').addEventListener('click', signIn);
-document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
-document.getElementById('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
-document.getElementById('signOutBtn').addEventListener('click', signOut);
-document.getElementById('syncIndicator').addEventListener('click', async () => { await flushPending(); try { cards = await pullAll(); saveLocal(); render(); } catch (e) {} });
-window.addEventListener('online', async () => { updateSyncIndicator(); await flushPending(); });
-window.addEventListener('offline', updateSyncIndicator);
-async function init() {
-  const { data: { session } } = await sb.auth.getSession();
-  const loginOverlay = document.getElementById('loginOverlay');
-  if (!session) {
-    loginOverlay.classList.add('show');
-    setTimeout(() => document.getElementById('loginEmail').focus(), 50);
-    return;
-  }
-  loginOverlay.classList.remove('show');
-  render();
-  updateSyncIndicator();
-  try {
-    const cloudCards = await pullAll();
-    cards = cloudCards;
-    saveLocal();
-    render();
-  } catch (e) { toast('Offline — using cached data', 'gold'); }
-  flushPending();
-}
-
-init();
+render();
 </script>
 </body>
 </html>
