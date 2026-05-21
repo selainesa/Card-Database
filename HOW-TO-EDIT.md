@@ -22,8 +22,10 @@ Don't trust that ChatGPT already has the latest version — even if you uploaded
 
 ```
 This is my current index.html from GitHub. When I ask for a change next,
-give me back the FULL updated file as a downloadable file. Never give me
-just a piece. Never remove any code I didn't ask you to remove.
+give me back the FULL updated file in a single code block I can copy.
+Never give me just a piece. Never remove any code I didn't ask you to
+remove. Never write "rest of file unchanged" or "..." — every line of
+the file must be in your response.
 ```
 
 Wait for ChatGPT to confirm.
@@ -34,7 +36,7 @@ Examples:
 - *"Make the table also show the date I added each card."*
 - *"Change the gold color to purple."*
 
-### 4. Check the answer BEFORE downloading
+### 4. Check the answer BEFORE copying
 When ChatGPT gives you back the updated file, ask it these two questions in the chat:
 
 **Question 1:** *"How many lines is this file?"*
@@ -47,11 +49,11 @@ When ChatGPT gives you back the updated file, ask it these two questions in the 
 - If any is missing, reply:
   > You removed a feature. Please give me the COMPLETE file with all the original code, plus my change.
 
-### 5. Download the new file from ChatGPT and copy it
-1. Click the file link ChatGPT gave you. It will save to your Downloads folder.
-2. Open the file with **Notepad** (right-click the file → **Open with** → **Notepad**). Don't use Word — it'll add formatting that breaks the code.
-3. Press **Ctrl + A** to select everything in the file
-4. Press **Ctrl + C** to copy it
+### 5. Copy the new file from the code block
+1. Hover over the code block in ChatGPT's response — a small **Copy** button (or "Copy code") appears at the top-right of the block
+2. Click it. That's it — the entire file is now on your clipboard
+
+If you don't see a Copy button, the response might not be a real code block. Reply to ChatGPT: *"Please put the file in a code block so I can copy it."*
 
 ### 6. Paste it into GitHub
 1. Go to https://github.com/selainesa/Card-Database
