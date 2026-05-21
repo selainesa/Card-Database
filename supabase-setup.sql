@@ -55,8 +55,17 @@ create policy "users see own cards"
 create index if not exists cards_user_updated_idx
   on public.cards (user_id, updated_at desc);
 
+-- 5) Quantity tracking — added in a later migration.
+--    Safe to re-run: `if not exists` makes the ALTERs idempotent.
+--    Existing rows get qty_in_stock=1 / qty_sold=0 by default, then the
+--    UPDATE below fixes the rows that were already marked sold.
+alter table public.cards add column if not exists qty_in_stock integer not null default 1;
+alter table public.cards add column if not exists qty_sold     integer not null default 0;
+update public.cards set qty_in_stock = 0, qty_sold = 1
+  where sold = true and qty_sold = 0;
+
 -- ============================================================
 -- Done. Verify by running:
---   select * from public.cards;
--- (should return zero rows but no error)
+--   select id, player, sold, qty_in_stock, qty_sold from public.cards;
+-- (should list all your cards with quantities populated)
 -- ============================================================
